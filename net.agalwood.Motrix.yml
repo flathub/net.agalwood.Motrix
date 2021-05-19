@@ -1,9 +1,9 @@
 app-id: net.agalwood.Motrix
 runtime: org.freedesktop.Platform
-runtime-version: "20.08"
+runtime-version: '20.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: "20.08"
+base-version: '20.08'
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node14
 # Electron doesn't use a traditional locale format so separate-locales is useless.
@@ -26,7 +26,7 @@ modules:
       - cp -a * $FLATPAK_DEST
     # Only used for building, so clean it up afterwards.
     cleanup:
-      - "*"
+      - '*'
     sources:
       - type: archive
         url: https://github.com/yarnpkg/yarn/releases/download/v1.22.10/yarn-v1.22.10.tar.gz
@@ -44,8 +44,8 @@ modules:
         # Don't add ELECTRON_CACHE
         XDG_CACHE_HOME: /run/build/motrix/flatpak-node/cache
         # npm_config_nodedir: /usr/lib/sdk/node14
-        npm_config_offline: "true"
-        npm_config_no_save: "true"
+        npm_config_offline: 'true'
+        npm_config_no_save: 'true'
         npm_config_cache: /run/build/motrix/flatpak-node/npm-cache
         npm_config_loglevel: verbose
         # https://stackoverflow.com/questions/25146976/can-i-get-npm-gyp-to-use-ccache
@@ -91,16 +91,17 @@ modules:
       - cp -r $FLATPAK_BUILDER_BUILDDIR/release/linux*-unpacked $FLATPAK_DEST/motrix
 
       # Retire this at some point when an SVG is available
-      - for size in 512; do [[ -e "static/${size}x${size}.png" ]] && install
-        -Dm644 "$FLATPAK_BUILDER_BUILDDIR/static/${size}x${size}.png" "/app/share/icons/hicolor/${size}x${size}/apps/${FLATPAK_ID}.png";
+      - for size in 512; do [[ -e "static/${size}x${size}.png" ]] && install -Dm644
+        "$FLATPAK_BUILDER_BUILDDIR/static/${size}x${size}.png" "/app/share/icons/hicolor/${size}x${size}/apps/${FLATPAK_ID}.png";
         done
-      - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/static/mo-tray-dark-normal@2x.png" "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
+      - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/static/mo-tray-dark-normal@2x.png"
+        "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
       - cp -r $FLATPAK_BUILDER_BUILDDIR/extra/linux/. $FLATPAK_DEST/motrix
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v1.6.10
-        commit: 166aba77474df5dd65da20ee1548004c9f078bdd
+        tag: v1.6.11
+        commit: b0242d3d5b5a89cab398960bd5125f68cf3fbfee
         x-checker-data:
           type: anitya
           project-id: 197314
