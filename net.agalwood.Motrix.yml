@@ -11,8 +11,9 @@ separate-locales: false
 command: start-motrix
 finish-args:
   - --device=dri
-  - --filesystem=xdg-download
-  - --filesystem=xdg-documents
+  # `GtkFileChooserNative` has merged and will be landed in Electron 14 (https://github.com/electron/electron/pull/19159)
+  # Remove this when Motrix adopts Electron 14
+  - --filesystem=home
   - --share=ipc
   - --share=network
   - --socket=x11
