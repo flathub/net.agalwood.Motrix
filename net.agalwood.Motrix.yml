@@ -1,9 +1,9 @@
 app-id: net.agalwood.Motrix
 runtime: org.freedesktop.Platform
-runtime-version: '21.08'
+runtime-version: '22.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: '21.08'
+base-version: '22.08'
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node14
 # Electron doesn't use a traditional locale format so separate-locales is useless.
