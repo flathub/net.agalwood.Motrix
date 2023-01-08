@@ -6,8 +6,6 @@ base: org.electronjs.Electron2.BaseApp
 base-version: '21.08'
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node14
-# Electron doesn't use a traditional locale format so separate-locales is useless.
-separate-locales: false
 command: start-motrix
 finish-args:
   - --device=dri
@@ -98,6 +96,16 @@ modules:
       - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/static/mo-tray-dark-normal@2x.png"
         "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
       - cp -r $FLATPAK_BUILDER_BUILDDIR/extra/linux/. $FLATPAK_DEST/motrix
+
+      # To allow separate locales
+      # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
+      - |
+        for lang in ${FLATPAK_DEST}/motrix/locales/*.pak
+        do
+          locale="$(basename -s .pak $lang)"
+          install -Dm644 -t "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/" "$lang"
+          ln -sf "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/$(basename $lang)" "${FLATPAK_DEST}/motrix/locales/$(basename $lang)"
+        done
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
