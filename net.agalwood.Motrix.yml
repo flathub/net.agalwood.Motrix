@@ -28,12 +28,12 @@ modules:
       - '*'
     sources:
       - type: archive
-        url: https://github.com/yarnpkg/yarn/releases/download/v1.22.10/yarn-v1.22.10.tar.gz
-        sha256: 7e433d4a77e2c79e6a7ae4866782608a8e8bcad3ec6783580577c59538381a6e
+        url: https://github.com/yarnpkg/yarn/releases/download/v1.22.19/yarn-v1.22.19.tar.gz
+        sha256: 732620bac8b1690d507274f025f3c6cfdc3627a84d9642e38a07452cc00e0f2e
         x-checker-data:
           type: anitya
           project-id: 13363
-          url-template: https://github.com/yarnpkg/yarn/releases/download/$version/yarn-v$version.tar.gz
+          url-template: https://github.com/yarnpkg/yarn/releases/download/v$version/yarn-v$version.tar.gz
   - name: motrix
     buildsystem: simple
     build-options:
@@ -117,9 +117,14 @@ modules:
           tag-template: v$version
           stable-only: true
       # Add the flatpak-node-generator generated sources.
-      # Note to generate recursively with -r since the repo is composed by submodules
-      # No need to generate a separate one for ./app
+      # flatpak-node-generator --electron-node-headers yarn yarn.lock
       - generated-sources.json
+
+      # Regenerated from packages.json due to using the deprecated sha1 checksum in the upstream lockfile
+      - type: file
+        path: yarn.lock
+        dest-filename: yarn.lock
+
   - name: start-script
     buildsystem: simple
     build-commands:
