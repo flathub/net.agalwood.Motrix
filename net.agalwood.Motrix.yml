@@ -19,21 +19,6 @@ finish-args:
 modules:
   - shared-modules/libsecret/libsecret.json
 
-  - name: yarn
-    buildsystem: simple
-    build-commands:
-      - cp -a * $FLATPAK_DEST
-    # Only used for building, so clean it up afterwards.
-    cleanup:
-      - '*'
-    sources:
-      - type: archive
-        url: https://github.com/yarnpkg/yarn/releases/download/v1.22.19/yarn-v1.22.19.tar.gz
-        sha256: 732620bac8b1690d507274f025f3c6cfdc3627a84d9642e38a07452cc00e0f2e
-        x-checker-data:
-          type: anitya
-          project-id: 13363
-          url-template: https://github.com/yarnpkg/yarn/releases/download/v$version/yarn-v$version.tar.gz
   - name: motrix
     buildsystem: simple
     build-options:
