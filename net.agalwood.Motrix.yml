@@ -1,9 +1,9 @@
 app-id: net.agalwood.Motrix
 runtime: org.freedesktop.Platform
-runtime-version: '21.08'
+runtime-version: '22.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: '21.08'
+base-version: '22.08'
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node14
 command: start-motrix
@@ -121,11 +121,6 @@ modules:
       # Add the flatpak-node-generator generated sources.
       # flatpak-node-generator --electron-node-headers yarn yarn.lock
       - generated-sources.json
-
-      # Regenerated from packages.json due to using the deprecated sha1 checksum in the upstream lockfile
-      - type: file
-        path: yarn.lock
-        dest-filename: yarn.lock
 
   - name: aria2
     config-opts:
