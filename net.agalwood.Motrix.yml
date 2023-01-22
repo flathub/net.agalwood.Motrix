@@ -80,7 +80,9 @@ modules:
         done
       - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/static/mo-tray-dark-normal@2x.png"
         "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
-      - cp -r $FLATPAK_BUILDER_BUILDDIR/extra/linux/. $FLATPAK_DEST/motrix
+
+      # Install the aria2c config
+      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/engine/aria2.conf $FLATPAK_DEST/motrix/engine/aria2.conf
 
       # To allow separate locales
       # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
@@ -104,6 +106,23 @@ modules:
       # Add the flatpak-node-generator generated sources.
       # flatpak-node-generator --electron-node-headers yarn yarn.lock
       - generated-sources.json
+
+  - name: aria2
+    config-opts:
+      - --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt
+      - --disable-libaria2
+    no-make-install: true
+    post-install:
+      - install -Dm755 src/aria2c ${FLATPAK_DEST}/motrix/engine/aria2c
+    sources:
+      - type: archive
+        url: "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0.tar.xz"
+        sha256: 58d1e7608c12404f0229a3d9a4953d0d00c18040504498b483305bcb3de907a5
+        x-checker-data:
+          type: anitya
+          project-id: 109
+          url-template: "https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz"
+          stable-only: true
 
   - name: start-script
     buildsystem: simple
