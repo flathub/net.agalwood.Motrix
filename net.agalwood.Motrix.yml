@@ -96,8 +96,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v1.6.11
-        commit: b0242d3d5b5a89cab398960bd5125f68cf3fbfee
+        tag: v1.8.14
+        commit: a39fa2979c08fcf94c9ecb5b27934327a3195037
         x-checker-data:
           type: anitya
           project-id: 197314
@@ -116,12 +116,12 @@ modules:
       - install -Dm755 src/aria2c ${FLATPAK_DEST}/motrix/engine/aria2c
     sources:
       - type: archive
-        url: "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0.tar.xz"
+        url: https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0.tar.xz
         sha256: 58d1e7608c12404f0229a3d9a4953d0d00c18040504498b483305bcb3de907a5
         x-checker-data:
           type: anitya
           project-id: 109
-          url-template: "https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz"
+          url-template: https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz
           stable-only: true
 
   - name: start-script
