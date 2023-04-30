@@ -97,8 +97,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v1.6.11
-        commit: b0242d3d5b5a89cab398960bd5125f68cf3fbfee
+        tag: v1.8.15
+        commit: af1cc4db8e135a102e93b80853e3de4eae288c95
         x-checker-data:
           type: anitya
           project-id: 197314
