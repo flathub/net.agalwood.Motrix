@@ -11,6 +11,8 @@ finish-args:
   - --device=dri
   - --share=ipc
   - --share=network
+  # aria2c requires this permission
+  - --filesystem=home
   - --socket=x11
   - --talk-name=org.freedesktop.Notifications
 modules:
