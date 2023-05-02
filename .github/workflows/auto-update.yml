@@ -15,7 +15,7 @@ jobs:
       - name: Setup environment variables
         run: |
           echo "FLATPAK_BUILDER_TOOLS_DIR=/tmp/flatpak-builder-tools" >> $GITHUB_ENV
-          echo "APP_VERSION="$(yq '.modules[2].sources[0].tag' 'net.agalwood.Motrix.yml')"" >> $GITHUB_ENV
+          echo "APP_VERSION="$(yq '.modules[1].sources[0].tag' 'net.agalwood.Motrix.yml')"" >> $GITHUB_ENV
 
       - name: Setup flatpak-builder-tools
         run: |
