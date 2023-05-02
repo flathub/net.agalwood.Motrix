@@ -5,15 +5,14 @@ sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '22.08'
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node14
+  - org.freedesktop.Sdk.Extension.node16
 command: start-motrix
 finish-args:
   - --device=dri
-  # `GtkFileChooserNative` has merged and will be landed in Electron 14 (https://github.com/electron/electron/pull/19159)
-  # Remove this when Motrix adopts Electron 14
-  - --filesystem=home
   - --share=ipc
   - --share=network
+  # aria2c requires this permission
+  - --filesystem=home
   - --socket=x11
   - --talk-name=org.freedesktop.Notifications
 modules:
@@ -23,11 +22,11 @@ modules:
     buildsystem: simple
     build-options:
       # Add the node bin directory.
-      append-path: /usr/lib/sdk/node14/bin:/app/yarn/bin:/run/build/motrix/flatpak-node/chromedrive
+      append-path: /usr/lib/sdk/node16/bin:/app/yarn/bin:/run/build/motrix/flatpak-node/chromedrive
       env:
         # Don't add ELECTRON_CACHE
         XDG_CACHE_HOME: /run/build/motrix/flatpak-node/cache
-        # npm_config_nodedir: /usr/lib/sdk/node14
+        # npm_config_nodedir: /usr/lib/sdk/node16
         npm_config_offline: 'true'
         npm_config_no_save: 'true'
         npm_config_cache: /run/build/motrix/flatpak-node/npm-cache
@@ -82,7 +81,7 @@ modules:
         "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
 
       # Install the aria2c config
-      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/engine/aria2.conf $FLATPAK_DEST/motrix/engine/aria2.conf
+      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/x64/engine/aria2.conf $FLATPAK_DEST/motrix/engine/aria2.conf
 
       # To allow separate locales
       # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
@@ -96,8 +95,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v1.6.11
-        commit: b0242d3d5b5a89cab398960bd5125f68cf3fbfee
+        tag: v1.8.15
+        commit: af1cc4db8e135a102e93b80853e3de4eae288c95
         x-checker-data:
           type: anitya
           project-id: 197314
@@ -116,12 +115,12 @@ modules:
       - install -Dm755 src/aria2c ${FLATPAK_DEST}/motrix/engine/aria2c
     sources:
       - type: archive
-        url: "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0.tar.xz"
+        url: https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0.tar.xz
         sha256: 58d1e7608c12404f0229a3d9a4953d0d00c18040504498b483305bcb3de907a5
         x-checker-data:
           type: anitya
           project-id: 109
-          url-template: "https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz"
+          url-template: https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz
           stable-only: true
 
   - name: start-script
