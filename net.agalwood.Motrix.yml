@@ -13,7 +13,8 @@ finish-args:
   - --share=network
   # aria2c requires this permission
   - --filesystem=home
-  - --socket=x11
+  - --socket=wayland
+  - --socket=fallback-x11
   - --talk-name=org.freedesktop.Notifications
 modules:
   - shared-modules/libsecret/libsecret.json
@@ -136,7 +137,7 @@ modules:
           # Use zypak to call the electron binary to enable sandboxing and prevents no sandbox error
           # Note the hyphen
           - export TMPDIR=$XDG_RUNTIME_DIR/app/$FLATPAK_ID
-          - zypak-wrapper /app/motrix/motrix "$@"
+          - zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --gtk-version=4 "$@"
   - name: metainfo
     buildsystem: simple
     build-commands:
