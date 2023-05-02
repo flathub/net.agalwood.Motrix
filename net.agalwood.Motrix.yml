@@ -82,7 +82,7 @@ modules:
         "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
 
       # Install the aria2c config
-      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/engine/aria2.conf $FLATPAK_DEST/motrix/engine/aria2.conf
+      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/x64/engine/aria2.conf $FLATPAK_DEST/motrix/engine/aria2.conf
 
       # To allow separate locales
       # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
