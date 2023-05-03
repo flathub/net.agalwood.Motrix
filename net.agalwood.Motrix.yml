@@ -82,7 +82,8 @@ modules:
         "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
 
       # Install the aria2c config
-      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/x64/engine/aria2.conf $FLATPAK_DEST/motrix/engine/aria2.conf
+      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/x64/engine/aria2.conf
+        $FLATPAK_DEST/motrix/engine/aria2.conf
 
       # To allow separate locales
       # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
@@ -96,8 +97,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v1.8.15
-        commit: af1cc4db8e135a102e93b80853e3de4eae288c95
+        tag: v1.8.19
+        commit: a0a1fe90f7e9f6d305ed2b512f62c8d36c2fb95a
         x-checker-data:
           type: anitya
           project-id: 197314
@@ -137,7 +138,8 @@ modules:
           # Use zypak to call the electron binary to enable sandboxing and prevents no sandbox error
           # Note the hyphen
           - export TMPDIR=$XDG_RUNTIME_DIR/app/$FLATPAK_ID
-          - zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --gtk-version=4 "$@"
+          - zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto --enable-features=WaylandWindowDecorations
+            --gtk-version=4 "$@"
   - name: metainfo
     buildsystem: simple
     build-commands:
