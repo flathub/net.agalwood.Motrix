@@ -16,6 +16,9 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --talk-name=org.freedesktop.Notifications
+  # tray icon
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.kde.StatusNotifierItem-3-1
 modules:
   - shared-modules/libsecret/libsecret.json
 
