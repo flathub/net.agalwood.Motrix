@@ -94,6 +94,11 @@ modules:
           install -Dm644 -t "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/" "$lang"
           ln -sf "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/$(basename $lang)" "${FLATPAK_DEST}/motrix/locales/$(basename $lang)"
         done
+
+      # Install the wrapper script to start it.
+      - install -Dm 755 start-motrix.sh $FLATPAK_DEST/bin/start-motrix
+      - install -Dm644 net.agalwood.Motrix.metainfo.xml $FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml
+      - install -Dm644 net.agalwood.Motrix.desktop $FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
@@ -107,6 +112,21 @@ modules:
       # Add the flatpak-node-generator generated sources.
       # flatpak-node-generator --electron-node-headers yarn yarn.lock
       - generated-sources.json
+
+      # Our runner script.
+      - type: script
+        dest-filename: start-motrix.sh
+        commands:
+          # Use zypak to call the electron binary to enable sandboxing and prevents no sandbox error
+          # Note the hyphen
+          - export TMPDIR=$XDG_RUNTIME_DIR/app/$FLATPAK_ID
+          - zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto --enable-features=WaylandWindowDecorations
+            --gtk-version=4 "$@"
+
+      - type: file
+        path: net.agalwood.Motrix.metainfo.xml
+      - type: file
+        path: net.agalwood.Motrix.desktop
 
   - name: aria2
     config-opts:
@@ -124,33 +144,3 @@ modules:
           project-id: 109
           url-template: https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz
           stable-only: true
-
-  - name: start-script
-    buildsystem: simple
-    build-commands:
-      # Install the wrapper script to start it.
-      - install -Dm 755 start-motrix.sh $FLATPAK_DEST/bin/start-motrix
-    sources:
-      # Our runner script.
-      - type: script
-        dest-filename: start-motrix.sh
-        commands:
-          # Use zypak to call the electron binary to enable sandboxing and prevents no sandbox error
-          # Note the hyphen
-          - export TMPDIR=$XDG_RUNTIME_DIR/app/$FLATPAK_ID
-          - zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto --enable-features=WaylandWindowDecorations
-            --gtk-version=4 "$@"
-  - name: metainfo
-    buildsystem: simple
-    build-commands:
-      - install -Dm644 net.agalwood.Motrix.metainfo.xml $FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml
-    sources:
-      - type: file
-        path: net.agalwood.Motrix.metainfo.xml
-  - name: desktop-entry
-    buildsystem: simple
-    build-commands:
-      - install -Dm644 net.agalwood.Motrix.desktop $FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop
-    sources:
-      - type: file
-        path: net.agalwood.Motrix.desktop
