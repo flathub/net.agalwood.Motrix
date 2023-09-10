@@ -16,6 +16,8 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --talk-name=org.freedesktop.Notifications
+  # For correct cursor scaling under Wayland
+  - --env=XCURSOR_PATH=~/.icons:/app/share/icons:/icons:/run/host/user-share/icons:/run/host/share/icons
 modules:
   - shared-modules/libsecret/libsecret.json
 
