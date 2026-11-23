@@ -1,0 +1,70 @@
+name: Sync upstream sources
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - net.agalwood.Motrix.yml
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Open same-repository PR number targeting the default branch
+        required: true
+        type: string
+      reviewed_recipe_sha256:
+        description: Exact immutable upstream recipe SHA256, after reviewing its diff
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-upstream-sources-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.base.ref == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      # Neither the PR checkout nor a manually selected non-default branch is trusted.
+      - name: Check out trusted orchestration only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Install trusted parser
+        run: python3 -m pip --disable-pip-version-check install --no-deps PyYAML==6.0.3
+
+      - name: Validate and synchronize immutable source lists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+          REVIEWED_RECIPE_SHA256: ${{ github.event_name == 'workflow_dispatch' && inputs.reviewed_recipe_sha256 || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--repository "$TARGET_REPOSITORY" --pr "$PR_NUMBER" --write)
+          if [[ -n "$REVIEWED_RECIPE_SHA256" ]]; then
+            args+=(--reviewed-recipe-sha256 "$REVIEWED_RECIPE_SHA256")
+          fi
+          python3 .github/scripts/sync_upstream_sources.py "${args[@]}"

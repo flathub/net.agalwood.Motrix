@@ -1,3 +1,12 @@
+# Flathub manifest for Motrix Turbo.
+#
+# Adapted from the immutable application commit; review upstream recipe drift
+# before synchronizing its two committed offline source lists.
+# Every dependency used during the offline build is declared below or in the
+# two committed generated source manifests.
+# 
+# Best effort adoption of the upstream build recipe https://github.com/agalwood/Motrix/blob/6099f17c585e5accb45972283a638229f24ab64b/flatpak/app.motrix.native.yml.
+
 app-id: net.agalwood.Motrix
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'
@@ -5,142 +14,395 @@ sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '25.08'
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node20
+  - org.freedesktop.Sdk.Extension.node24
 command: start-motrix
+
+# The default destination is the user's XDG Downloads directory. Other
+# directories are granted explicitly through the file chooser portal.
 finish-args:
   - --device=dri
   - --share=ipc
   - --share=network
-  # aria2c requires this permission
-  - --filesystem=home
+  - --filesystem=xdg-download:create
   - --socket=wayland
   - --socket=fallback-x11
-  - --talk-name=org.freedesktop.Notifications
-  # For correct cursor scaling under Wayland
-  - --env=XCURSOR_PATH=~/.icons:/app/share/icons:/icons:/run/host/user-share/icons:/run/host/share/icons
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --env=XCURSOR_PATH=/run/host/user-share/icons:/run/host/share/icons
+
+# aria2 is staged before the Electron package is assembled. Keep only the
+# copy under resources/extra/linux/<arch>, which is the application runtime
+# contract shared with deb/rpm releases.
+cleanup:
+  - /libexec/motrix-build
+
 modules:
+  # c-ares and libssh2 are not exported by Freedesktop Platform 25.08.
+  # Building them explicitly prevents aria2 from silently dropping Async DNS
+  # or SFTP support during configure.
+  - name: c-ares
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCARES_SHARED=ON
+      - -DCARES_STATIC=OFF
+      - -DCARES_BUILD_TESTS=OFF
+      - -DCARES_BUILD_TOOLS=OFF
+    cleanup:
+      - /include
+      - /lib/cmake
+      - /lib/pkgconfig
+    sources:
+      - type: archive
+        url: https://github.com/c-ares/c-ares/releases/download/v1.34.6/c-ares-1.34.6.tar.gz
+        sha256: 912dd7cc3b3e8a79c52fd7fb9c0f4ecf0aaa73e45efda880266a2d6e26b84ef5
+
+  - name: libssh2
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+      - --enable-shared
+      - --with-crypto=openssl
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - '*.la'
+    sources:
+      - type: archive
+        url: https://github.com/libssh2/libssh2/releases/download/libssh2-1.11.1/libssh2-1.11.1.tar.xz
+        sha256: 9954cb54c4f548198a7cbebad248bdc87dd64bd26185708a294b2b50771e3769
+
+  - name: aria2
+    buildsystem: autotools
+    config-opts:
+      - --disable-libaria2
+      - --disable-nls
+      - --enable-ssl
+      - --enable-bittorrent
+      - --enable-metalink
+      - --enable-websocket
+      - --enable-epoll
+      - --with-openssl
+      - --without-gnutls
+      - --without-appletls
+      - --without-wintls
+      - --without-libnettle
+      - --without-libgcrypt
+      - --without-libgmp
+      - --without-libuv
+      - --without-libxml2
+      - --with-libexpat
+      - --with-libcares
+      - --with-sqlite3
+      - --with-libz
+      - --with-libssh2
+      - --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt
+    no-make-install: true
+    post-install:
+      - |
+        # set -e is load-bearing: without it the for-loop's exit status is
+        # only the LAST grep, and any earlier missing feature is swallowed.
+        set -e
+        output="$(src/aria2c --version)"
+        printf '%s\n' "$output"
+        printf '%s\n' "$output" | grep -qF 'aria2 version 1.37.0-motrix.25'
+        for feature in \
+          'Async DNS' \
+          'BitTorrent' \
+          'Firefox3 Cookie' \
+          'GZip' \
+          'HTTPS' \
+          'Message Digest' \
+          'Metalink' \
+          'SFTP' \
+          'SQLite3-Persistence' \
+          'XML-RPC'
+        do
+          printf '%s\n' "$output" | grep -qF "$feature"
+        done
+        # aria2c --version never lists WebSocket support; assert the wslay
+        # RPC handshake path is compiled in by scanning the binary itself.
+        grep -qa 'Sec-WebSocket-Accept' src/aria2c
+      - install -Dm755 src/aria2c $FLATPAK_DEST/libexec/motrix-build/aria2c
+    sources:
+      - type: git
+        url: https://github.com/motrixapp/aria2.git
+        tag: v1.37.0-motrix.25
+        commit: 83add2f972b6797b0a66ca0e3e3470e4618d84e1
+
+      # The release tree has configure.ac but no generated configure or
+      # autogen.sh. Keep the Motrix release suffix and provide the autotools
+      # bootstrap expected by flatpak-builder.
+      - type: shell
+        commands:
+          - |
+            sed -i -E \
+              's/AC_INIT\(\[aria2\],\[[^]]+\]/AC_INIT([aria2],[1.37.0-motrix.25]/' \
+              configure.ac
+            grep -qF 'AC_INIT([aria2],[1.37.0-motrix.25]' configure.ac
+      - type: script
+        dest-filename: autogen.sh
+        commands:
+          - autoreconf -fi
+          - exec ./configure "$@"
+
+  # Keep the application last: beforePack validates the source-built aria2
+  # and browser-facing native-host binaries before electron-builder can
+  # package anything. The browser-facing host is removed from the Flatpak
+  # payload below; only the private in-sandbox broker is exported.
   - name: motrix
     buildsystem: simple
     build-options:
-      # Add the node bin directory.
-      append-path: /usr/lib/sdk/node20/bin:/app/yarn/bin:/run/build/motrix/flatpak-node/chromedrive
+      prepend-path: /run/build/motrix/flatpak-node/pnpm-cli/bin:/run/build/motrix/flatpak-rust-toolchain/bin
+      append-path: /usr/lib/sdk/node24/bin
       env:
-        # Don't add ELECTRON_CACHE
         XDG_CACHE_HOME: /run/build/motrix/flatpak-node/cache
-        # npm_config_nodedir: /usr/lib/sdk/node20
-        npm_config_offline: 'true'
-        npm_config_no_save: 'true'
         npm_config_cache: /run/build/motrix/flatpak-node/npm-cache
-        npm_config_loglevel: verbose
-        # https://stackoverflow.com/questions/25146976/can-i-get-npm-gyp-to-use-ccache
-        CXX: ccache g++
-        CC: ccache gcc
+        npm_config_loglevel: warn
+        # Must track the electron version in package.json — generated-sources
+        # unpacks that release's headers here, and electron-rebuild's gyp run
+        # fails on a dangling path.
+        npm_config_nodedir: /run/build/motrix/flatpak-node/cache/node-gyp/45.3.3
+        npm_config_offline: 'true'
+        CARGO_HOME: /run/build/motrix/cargo
+        CARGO_NET_OFFLINE: 'true'
+        MOTRIX_BUILTIN_ARTIFACT_DIR: /run/build/motrix/flatpak-builtins
+        MOTRIX_SKIP_ELECTRON_REBUILD: '1'
+        MOTRIX_SKIP_ENGINE_FETCH: '1'
+        ADBLOCK: '1'
+        DISABLE_OPENCOLLECTIVE: '1'
       arch:
-        # https://github.com/sass/node-sass/issues/3033#issuecomment-763180778
-        # The architecture of Electron, see https://electronjs.org/docs/tutorial/support#supported-platforms
-        # for supported architectures.
-        i386:
-          env:
-            npm_config_arch: ia32
-            npm_config_target_arch: ia32
         x86_64:
           env:
             npm_config_arch: x64
             npm_config_target_arch: x64
-        arm:
-          env:
-            npm_config_arch: armv7l
-            npm_config_target_arch: armv7l
+            MOTRIX_RUST_TARGET: x86_64-unknown-linux-gnu
         aarch64:
           env:
             npm_config_arch: arm64
             npm_config_target_arch: arm64
+            MOTRIX_RUST_TARGET: aarch64-unknown-linux-gnu
 
     build-commands:
-      # Use the offline mirror.
-      - HOME=$PWD yarn config --offline set yarn-offline-mirror $FLATPAK_BUILDER_BUILDDIR/flatpak-node/yarn-mirror
+      # Keep the build-only Rust toolchain content-addressed with the rest of
+      # the offline sources. A floating Flathub SDK extension can briefly
+      # reference objects that have not reached every repository mirror yet.
+      - ./flatpak-rust/install.sh
+        --prefix=/run/build/motrix/flatpak-rust-toolchain
+        --without=rust-docs
+        --without=rust-docs-json-preview
+        --disable-ldconfig
+        --verbose
+      # pnpm 12's wrapper requires a platform package. npm cannot resolve that
+      # optional dependency from an empty offline registry cache. Both archives
+      # below are already integrity-pinned Flatpak inputs, so unpack them into
+      # the normal dependency layout and run the wrapper's native-bin setup.
+      - |
+        pnpm_root=/run/build/motrix/flatpak-node/pnpm-cli/lib/node_modules/pnpm
+        pnpm_native="$pnpm_root/node_modules/@pnpm/exe.linux-${npm_config_target_arch}"
+        mkdir -p "$pnpm_native" flatpak-node/pnpm-cli/bin
+        tar -xzf flatpak-node/pnpm/pnpm-12.21.0.tgz \
+          --strip-components=1 -C "$pnpm_root"
+        tar -xzf "flatpak-node/pnpm-tarballs/@pnpm__exe.linux-${npm_config_target_arch}-12.21.0.tgz" \
+          --strip-components=1 -C "$pnpm_native"
+        node "$pnpm_root/install.js"
+        ln -s ../lib/node_modules/pnpm/pnpm flatpak-node/pnpm-cli/bin/pnpm
+        test "$(pnpm --version)" = '12.21.0'
+      # pnpm's supply-chain cooldown check fetches per-package publish times
+      # from the registry even under --offline, and the sandbox has no
+      # network. pnpm treats the setting as workspace-file-only (a
+      # --config.minimum-release-age=0 CLI override is silently ignored), so
+      # disable it by appending to the sandbox's own copy of
+      # pnpm-workspace.yaml — the committed file keeps the policy on, the
+      # same lockfile already passed it online in the "Verify locked offline
+      # sources" job, and every sandbox input is sha256-pinned in
+      # generated-sources.json.
+      # (Quoted: the colon inside would otherwise turn this YAML scalar into
+      # a mapping and the command would silently never run.)
+      - "echo 'minimumReleaseAge: 0' >> pnpm-workspace.yaml"
+      - pnpm install --offline --frozen-lockfile --ignore-scripts
 
-      # Translated from .travis.yml
-      # - yarn --offline add -g xvfb-maybe
-      - yarn --offline --pure-lockfile --$npm_config_arch
+      # The root postinstall is intentionally suppressed. Extract only the
+      # locked Electron runtime from generated-sources.
+      - node node_modules/electron/install.js
 
-      - node $FLATPAK_BUILDER_BUILDDIR/.electron-vue/build.js
-      - yarn --offline run electron-builder --linux dir --$npm_config_arch -c.linux.target=dir
+      # pnpm 12 otherwise repairs an --ignore-scripts install before run/exec,
+      # changing the audited build graph. All later invocations disable it.
+      - pnpm --config.verify-deps-before-run=false
+        run check:third-party-notices
+      - pnpm --config.verify-deps-before-run=false
+        exec electron-rebuild
+        --force
+        --only better-sqlite3
+        --arch=$npm_config_target_arch
+
+      - install -Dm755 /app/libexec/motrix-build/aria2c
+        extra/linux/$npm_config_target_arch/aria2c
+
+      # The pinned Rust archive supplies the native GNU target, not a musl
+      # target. Build directly instead of invoking release-oriented build.mjs.
+      # --bins also produces the browser-facing host required transiently by
+      # electron-builder. It is stripped before the unpacked app is copied to
+      # $FLATPAK_DEST; the broker is the only native-host binary exported.
+      - cargo build
+        --manifest-path packages/native-host/Cargo.toml
+        --bins
+        --release
+        --locked
+        --offline
+        --target=$MOTRIX_RUST_TARGET
+        --target-dir=/run/build/motrix/native-target
+      - install -Dm755
+        /run/build/motrix/native-target/$MOTRIX_RUST_TARGET/release/motrix-native-host
+        packages/native-host/dist/linux-$npm_config_target_arch/motrix-native-host
+      - cargo build
+        --manifest-path packages/finalize-fs/Cargo.toml
+        --release
+        --locked
+        --offline
+        --target=$MOTRIX_RUST_TARGET
+        --target-dir=/run/build/motrix/finalize-target
+      - install -Dm755
+        /run/build/motrix/finalize-target/$MOTRIX_RUST_TARGET/release/motrix-finalize-fs
+        packages/finalize-fs/dist/linux-$npm_config_target_arch/motrix-finalize-fs
+
+      - pnpm --config.verify-deps-before-run=false run build:builtin
+      - pnpm --config.verify-deps-before-run=false run build:electron
+      - pnpm --config.verify-deps-before-run=false run stage:electron --
+        --platform linux
+        --arch $npm_config_target_arch
+      # electronDist reuses the runtime install.js already extracted from
+      # generated-sources; without it electron-builder re-downloads the dist
+      # zip and its SHASUMS256.txt from GitHub, which the offline sandbox
+      # cannot reach (the SHASUMS file has no URL-keyed cache entry).
+      - pnpm --config.verify-deps-before-run=false exec electron-builder
+        --linux dir
+        --$npm_config_arch
+        -c.linux.target=dir
+        -c.electronDist=node_modules/electron/dist
         --publish=never
 
-      # Remove unneeded files
-      - rm $FLATPAK_BUILDER_BUILDDIR/release/linux*-unpacked/chrome-sandbox
-
-      # Copy the resulting, unpacked directory to $FLATPAK_DEST.
-      - cp -r $FLATPAK_BUILDER_BUILDDIR/release/linux*-unpacked $FLATPAK_DEST/motrix
-
-      # Retire this at some point when an SVG is available
-      - for size in 512; do [[ -e "static/${size}x${size}.png" ]] && install -Dm644
-        "$FLATPAK_BUILDER_BUILDDIR/static/${size}x${size}.png" "/app/share/icons/hicolor/${size}x${size}/apps/${FLATPAK_ID}.png";
-        done
-      - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/static/mo-tray-dark-normal@2x.png"
-        "/app/share/icons/hicolor/symbolic/apps/${FLATPAK_ID}-symbolic.png"
-
-      # Install the aria2c config
-      - install -Dm644 $FLATPAK_BUILDER_BUILDDIR/extra/linux/x64/engine/aria2.conf
-        $FLATPAK_DEST/motrix/engine/aria2.conf
-
-      # To allow separate locales
-      # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
       - |
-        for lang in ${FLATPAK_DEST}/motrix/locales/*.pak
-        do
-          locale="$(basename -s .pak $lang)"
-          install -Dm644 -t "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/" "$lang"
-          ln -sf "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/$(basename $lang)" "${FLATPAK_DEST}/motrix/locales/$(basename $lang)"
-        done
+        unpacked=release/linux-unpacked
+        if [ "$npm_config_target_arch" = arm64 ]; then
+          unpacked=release/linux-arm64-unpacked
+        fi
+        node scripts/verify-electron-package.mjs \
+          --app-dir "$unpacked" \
+          --platform linux \
+          --arch "$npm_config_target_arch" \
+          --report "release/size-reports/linux-$npm_config_target_arch.json"
+        test -x "$unpacked/resources/extra/linux/$npm_config_target_arch/aria2c"
+        test -x "$unpacked/resources/bin/motrix-native-host"
+        test -x "$unpacked/resources/bin/motrix-finalize-fs"
+        rm "$unpacked/resources/bin/motrix-native-host"
+        test ! -e "$unpacked/resources/bin/motrix-native-host"
+        rm "$unpacked/chrome-sandbox"
+        cp -a "$unpacked" "$FLATPAK_DEST/motrix"
 
-      # Install the wrapper script to start it.
-      - install -Dm 755 start-motrix.sh $FLATPAK_DEST/bin/start-motrix
-      - install -Dm644 net.agalwood.Motrix.metainfo.xml $FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml
-      - install -Dm644 net.agalwood.Motrix.desktop $FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop
+      # The public command is a fixed wrapper around the private broker. The
+      # host-side companion translates Browser Native Messaging frames into
+      # the versioned broker protocol before invoking this command.
+      - install -Dm755
+        /run/build/motrix/native-target/$MOTRIX_RUST_TARGET/release/motrix-native-host-broker
+        $FLATPAK_DEST/libexec/motrix-native-host-broker
+      - install -Dm755 native-host-broker-flatpak.sh
+        $FLATPAK_DEST/bin/motrix-native-host-broker
+
+      - patch-desktop-filename $FLATPAK_DEST/motrix/resources/app.asar
+      - install -Dm644 build/256x256.png
+        /app/share/icons/hicolor/256x256/apps/$FLATPAK_ID.png
+      - install -Dm644 flatpak/app.motrix.native.metainfo.xml
+        $FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml
+      - install -Dm644 flatpak/app.motrix.native.desktop
+        $FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop
+      # Fail on metadata format drift instead of silently exporting wrong IDs.
+      - |
+        set -eu
+        desktop="$FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop"
+        metainfo="$FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml"
+        test "$(grep -Fxc 'Icon=app.motrix.native' "$desktop")" = 1
+        test "$(grep -Fxc '  <id>app.motrix.native</id>' "$metainfo")" = 1
+        test "$(grep -Fxc '  <launchable type="desktop-id">app.motrix.native.desktop</launchable>' "$metainfo")" = 1
+        sed -i 's/^Icon=app\.motrix\.native$/Icon=net.agalwood.Motrix/' "$desktop"
+        sed -i 's|^  <id>app\.motrix\.native</id>$|  <id>net.agalwood.Motrix</id>|; s|^  <launchable type="desktop-id">app\.motrix\.native\.desktop</launchable>$|  <launchable type="desktop-id">net.agalwood.Motrix.desktop</launchable>|' "$metainfo"
+      - install -Dm755 start-motrix.sh $FLATPAK_DEST/bin/start-motrix
+
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v1.8.19
-        commit: a0a1fe90f7e9f6d305ed2b512f62c8d36c2fb95a
+        tag: v2.4.5
+        commit: 6099f17c585e5accb45972283a638229f24ab64b
         x-checker-data:
-          type: anitya
-          project-id: 197314
-          tag-template: v$version
-          stable-only: true
-      # Add the flatpak-node-generator generated sources.
-      # flatpak-node-generator --electron-node-headers yarn yarn.lock
-      - generated-sources.json
+          type: git
+          tag-pattern: '^v([0-9]+\.[0-9]+\.[0-9]+)$'
+      - type: patch
+        path: patches/retain-flathub-id.patch
 
-      # Our runner script.
+      # Pin the build-only Rust toolchain by architecture. Flathub fetches it
+      # with every other source before the offline build phase.
+      - type: archive
+        only-arches:
+          - x86_64
+        dest: flatpak-rust
+        url: https://static.rust-lang.org/dist/2026-08-20/rust-1.98.0-x86_64-unknown-linux-gnu.tar.xz
+        sha256: ed8ee2df70909c88cbaf87a6cfa3920dac00b537de12a6abe6906641e0f5952f
+      - type: archive
+        only-arches:
+          - aarch64
+        dest: flatpak-rust
+        url: https://static.rust-lang.org/dist/2026-08-20/rust-1.98.0-aarch64-unknown-linux-gnu.tar.xz
+        sha256: ac9283184301aeed06ecc9f5aa4c1be7041e18a1b197b6cb6c5d162d98f566da
+
+      # Generated from the lockfiles in the exact application source commit.
+      - generated-sources.json
+      - cargo-sources.json
+
+      # The Node generator prepares a pnpm store but not the pnpm CLI.
+      - type: file
+        url: https://registry.npmjs.org/pnpm/-/pnpm-12.21.0.tgz
+        sha256: 0791469382b579869c51827759876616bc3eae5296d8fa880bbc3c9c1e8cf6f7
+        dest: flatpak-node/pnpm
+
+      # Signed builtin plugins. fetch-builtins.mjs rechecks every locked
+      # artifact digest and detached Ed25519 signature before unpacking.
+      - type: file
+        url: https://github.com/motrixapp/builtin-plugins/releases/download/motrix.filename-template%401.1.1/motrix.filename-template-1.1.1.moext
+        sha256: 3b88e4b79ae3a019f1efec08ccd69bf6f83088887f7c13205f1d58ea22bfc4da
+        dest: flatpak-builtins
+      - type: file
+        url: https://github.com/motrixapp/builtin-plugins/releases/download/motrix.filename-template%401.1.1/motrix.filename-template-1.1.1.moext.sig
+        sha256: 5b6bfcc74e0d923ed37c4f2340bfdc4cdac30f64191a15ce5c46ddc86590bc6d
+        dest: flatpak-builtins
+      - type: file
+        url: https://github.com/motrixapp/builtin-plugins/releases/download/motrix.scraper-hook%401.0.0/motrix.scraper-hook-1.0.0.moext
+        sha256: 2b6d1771fa0ccbd21e3a3da1284a589bd8f93d3a2ad6c6813fba6f21d2cfcb25
+        dest: flatpak-builtins
+      - type: file
+        url: https://github.com/motrixapp/builtin-plugins/releases/download/motrix.scraper-hook%401.0.0/motrix.scraper-hook-1.0.0.moext.sig
+        sha256: 7403d5ec5f61819370bcf153fe955e0736109b844c1eb53f959e6ebd0790be78
+        dest: flatpak-builtins
+      - type: file
+        url: https://github.com/motrixapp/builtin-plugins/releases/download/motrix.url-resolver%401.0.0/motrix.url-resolver-1.0.0.moext
+        sha256: 308dfd0ce86332f43aeb6ee84fad36a37d71f8fb7ef1eb1b79a0e6beb58e4a9e
+        dest: flatpak-builtins
+      - type: file
+        url: https://github.com/motrixapp/builtin-plugins/releases/download/motrix.url-resolver%401.0.0/motrix.url-resolver-1.0.0.moext.sig
+        sha256: 716af87eb2adbb4796ed6ac600c9b14840cb8354eb9ccebfe6122615ba88c17c
+        dest: flatpak-builtins
+
       - type: script
         dest-filename: start-motrix.sh
         commands:
-          # Use zypak to call the electron binary to enable sandboxing and prevents no sandbox error
-          # Note the hyphen
-          - export TMPDIR=$XDG_RUNTIME_DIR/app/$FLATPAK_ID
-          - zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto --enable-features=WaylandWindowDecorations
-            --gtk-version=4 "$@"
+          - unset SNAP SNAP_NAME SNAP_INSTANCE_NAME SNAP_REAL_HOME
+          - export GTK_USE_PORTAL=1
+          - export MOTRIX_BRIDGE_DATA_DIR="${XDG_CONFIG_HOME:?}/motrix/bridge"
+          - export TMPDIR="${XDG_RUNTIME_DIR:?}/app/${FLATPAK_ID:?}"
+          - mkdir -p "$TMPDIR"
+          - exec zypak-wrapper /app/motrix/motrix
+            --ozone-platform-hint=auto
+            "$@"
 
-      - type: file
-        path: net.agalwood.Motrix.metainfo.xml
-      - type: file
-        path: net.agalwood.Motrix.desktop
-
-  - name: aria2
-    config-opts:
-      - --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt
-      - --disable-libaria2
-    no-make-install: true
-    post-install:
-      - install -Dm755 src/aria2c ${FLATPAK_DEST}/motrix/engine/aria2c
-    sources:
-      - type: archive
-        url: https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0.tar.xz
-        sha256: 60a420ad7085eb616cb6e2bdf0a7206d68ff3d37fb5a956dc44242eb2f79b66b
-        x-checker-data:
-          type: anitya
-          project-id: 109
-          url-template: https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz
-          stable-only: true
+      - type: script
+        dest-filename: native-host-broker-flatpak.sh
+        commands:
+          - unset SNAP SNAP_NAME SNAP_INSTANCE_NAME SNAP_REAL_HOME
+          - exec /app/libexec/motrix-native-host-broker "$@"
