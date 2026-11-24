@@ -23,7 +23,7 @@ finish-args:
   - --device=dri
   - --share=ipc
   - --share=network
-  - --filesystem=xdg-download:create
+  - --filesystem=xdg-download
   - --socket=wayland
   - --socket=fallback-x11
   - --talk-name=org.kde.StatusNotifierWatcher
