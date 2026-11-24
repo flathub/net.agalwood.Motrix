@@ -1,0 +1,246 @@
+diff --git a/electron-builder.json b/electron-builder.json
+index 154818cb..109259f8 100644
+--- a/electron-builder.json
++++ b/electron-builder.json
+@@ -1,6 +1,6 @@
+ {
+   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+-  "appId": "app.motrix.native",
++  "appId": "net.agalwood.Motrix",
+   "productName": "Motrix",
+   "copyright": "Copyright © 2026 Dr_rOot",
+   "toolsets": {
+diff --git a/packages/native-host/src/flatpak_companion/tests.rs b/packages/native-host/src/flatpak_companion/tests.rs
+index 5664bc69..37cc40ce 100644
+--- a/packages/native-host/src/flatpak_companion/tests.rs
++++ b/packages/native-host/src/flatpak_companion/tests.rs
+@@ -661,14 +661,14 @@ fn process_runtime_uses_fixed_flatpak_commands_and_rejects_stdout_pollution() {
+     let script = format!(
+         "#!/bin/sh\n\
+          if [ \"$#\" -eq 2 ]; then\n\
+-           [ \"$1\" = run ] && [ \"$2\" = app.motrix.native ] || exit 91\n\
++           [ \"$1\" = run ] && [ \"$2\" = net.agalwood.Motrix ] || exit 91\n\
+            : > {}\n\
+            exit 0\n\
+          fi\n\
+          [ \"$#\" -eq 3 ] || exit 92\n\
+          [ \"$1\" = run ] || exit 93\n\
+          [ \"$2\" = --command=motrix-native-host-broker ] || exit 94\n\
+-         [ \"$3\" = app.motrix.native ] || exit 95\n\
++         [ \"$3\" = net.agalwood.Motrix ] || exit 95\n\
+          cat >/dev/null\n\
+          printf '{}'\n",
+         shell_quote(&marker),
+diff --git a/packages/native-host/src/launcher.rs b/packages/native-host/src/launcher.rs
+index 674f29fd..8cc943ee 100644
+--- a/packages/native-host/src/launcher.rs
++++ b/packages/native-host/src/launcher.rs
+@@ -254,7 +254,7 @@ mod tests {
+         assert_eq!(
+             flatpak_launch_decision(
+                 NativeHostPlatform::Linux,
+-                Some(OsStr::new("app.motrix.native")),
++                Some(OsStr::new("net.agalwood.Motrix")),
+             ),
+             FlatpakLaunchDecision::Launch(LaunchCommand {
+                 program: PathBuf::from("/app/bin/start-motrix"),
+@@ -269,7 +269,9 @@ mod tests {
+             "",
+             " ",
+             "org.example.Other",
+-            "app.motrix.native/../../other",
++            "app.motrix.native",
++            "net.agalwood.motrix",
++            "net.agalwood.Motrix/../../other",
+         ] {
+             assert_eq!(
+                 flatpak_launch_decision(NativeHostPlatform::Linux, Some(OsStr::new(invalid)),),
+@@ -287,7 +289,7 @@ mod tests {
+         assert_eq!(
+             flatpak_launch_decision(
+                 NativeHostPlatform::Darwin,
+-                Some(OsStr::new("app.motrix.native")),
++                Some(OsStr::new("net.agalwood.Motrix")),
+             ),
+             FlatpakLaunchDecision::NotFlatpak
+         );
+diff --git a/packages/native-host/src/lib.rs b/packages/native-host/src/lib.rs
+index 7fabdac8..da8c113c 100644
+--- a/packages/native-host/src/lib.rs
++++ b/packages/native-host/src/lib.rs
+@@ -20,7 +20,7 @@ pub mod user_data;
+ 
+ use serde_json::Value;
+ 
+-pub const MOTRIX_FLATPAK_ID: &str = "app.motrix.native";
++pub const MOTRIX_FLATPAK_ID: &str = "net.agalwood.Motrix";
+ 
+ /// Preserve the v1 input semantics: any JSON object or array is accepted,
+ /// `action` is ignored, and only the literal boolean `true` enables launch.
+diff --git a/packages/native-host/src/user_data.rs b/packages/native-host/src/user_data.rs
+index 3e01bc23..f1c6b990 100644
+--- a/packages/native-host/src/user_data.rs
++++ b/packages/native-host/src/user_data.rs
+@@ -372,18 +372,23 @@ mod tests {
+     fn flatpak_bridge_requires_the_exact_app_id_and_absolute_xdg_config_home() {
+         assert_eq!(
+             resolve_flatpak_bridge_data_dir(
+-                Some(OsStr::new("app.motrix.native")),
+-                Some(OsStr::new("/home/me/.var/app/app.motrix.native/config")),
++                Some(OsStr::new("net.agalwood.Motrix")),
++                Some(OsStr::new("/home/me/.var/app/net.agalwood.Motrix/config")),
+             ),
+             Some(PathBuf::from(
+-                "/home/me/.var/app/app.motrix.native/config/motrix/bridge"
++                "/home/me/.var/app/net.agalwood.Motrix/config/motrix/bridge"
+             ))
+         );
+-        for flatpak_id in [None, Some(OsStr::new("org.example.Other"))] {
++        for flatpak_id in [
++            None,
++            Some(OsStr::new("org.example.Other")),
++            Some(OsStr::new("app.motrix.native")),
++            Some(OsStr::new("net.agalwood.motrix")),
++        ] {
+             assert_eq!(
+                 resolve_flatpak_bridge_data_dir(
+                     flatpak_id,
+-                    Some(OsStr::new("/home/me/.var/app/app.motrix.native/config")),
++                    Some(OsStr::new("/home/me/.var/app/net.agalwood.Motrix/config")),
+                 ),
+                 None
+             );
+@@ -394,7 +399,10 @@ mod tests {
+             Some(OsStr::new("/")),
+         ] {
+             assert_eq!(
+-                resolve_flatpak_bridge_data_dir(Some(OsStr::new("app.motrix.native")), config_home,),
++                resolve_flatpak_bridge_data_dir(
++                    Some(OsStr::new("net.agalwood.Motrix")),
++                    config_home,
++                ),
+                 None
+             );
+         }
+diff --git a/packages/native-host/tests/flatpak_broker_integration.rs b/packages/native-host/tests/flatpak_broker_integration.rs
+index 0534dfa1..19a9af00 100644
+--- a/packages/native-host/tests/flatpak_broker_integration.rs
++++ b/packages/native-host/tests/flatpak_broker_integration.rs
+@@ -145,7 +145,7 @@ fn broker_probes_only_the_flatpak_xdg_bridge_and_returns_one_exact_frame() {
+     )
+     .expect("write endpoint");
+ 
+-    let output = run_broker(&config_home, "app.motrix.native", &probe_request());
++    let output = run_broker(&config_home, "net.agalwood.Motrix", &probe_request());
+     assert!(output.status.success());
+     assert!(output.stderr.is_empty());
+     assert_eq!(
+@@ -159,7 +159,7 @@ fn broker_probes_only_the_flatpak_xdg_bridge_and_returns_one_exact_frame() {
+ fn broker_returns_not_running_without_launching() {
+     let temp = TempDir::new("not-running");
+     let config_home = temp.path.join("config");
+-    let output = run_broker(&config_home, "app.motrix.native", &probe_request());
++    let output = run_broker(&config_home, "net.agalwood.Motrix", &probe_request());
+     assert!(output.status.success());
+     assert_eq!(
+         decode_broker_response(&output.stdout).expect("decode broker response"),
+@@ -183,13 +183,13 @@ fn broker_rejects_wrong_identity_unknown_fields_and_trailing_bytes_without_stdou
+         "allowLaunch": true,
+     }))
+     .expect("encode unknown field");
+-    let unknown = run_broker(&config_home, "app.motrix.native", &unknown);
++    let unknown = run_broker(&config_home, "net.agalwood.Motrix", &unknown);
+     assert!(!unknown.status.success());
+     assert!(unknown.stdout.is_empty());
+ 
+     let mut trailing = probe_request();
+     trailing.push(b'x');
+-    let trailing = run_broker(&config_home, "app.motrix.native", &trailing);
++    let trailing = run_broker(&config_home, "net.agalwood.Motrix", &trailing);
+     assert!(!trailing.status.success());
+     assert!(trailing.stdout.is_empty());
+ }
+diff --git a/packages/native-host/tests/flatpak_companion_integration.rs b/packages/native-host/tests/flatpak_companion_integration.rs
+index 745eb742..c9cb2a53 100644
+--- a/packages/native-host/tests/flatpak_companion_integration.rs
++++ b/packages/native-host/tests/flatpak_companion_integration.rs
+@@ -231,7 +231,7 @@ fn installed_companion_validates_caller_and_reencodes_broker_output() {
+          [ \"$#\" -eq 3 ] || exit 91\n\
+          [ \"$1\" = run ] || exit 92\n\
+          [ \"$2\" = --command=motrix-native-host-broker ] || exit 93\n\
+-         [ \"$3\" = app.motrix.native ] || exit 94\n\
++         [ \"$3\" = net.agalwood.Motrix ] || exit 94\n\
+          printf x >> {}\n\
+          cat >/dev/null\n\
+          printf '{}'\n",
+diff --git a/src/main/bridge/flatpak-environment.test.ts b/src/main/bridge/flatpak-environment.test.ts
+index 150657f5..b9e5fb9d 100644
+--- a/src/main/bridge/flatpak-environment.test.ts
++++ b/src/main/bridge/flatpak-environment.test.ts
+@@ -5,26 +5,40 @@ import {
+ } from './flatpak-environment'
+ 
+ describe('isPackagedLinuxFlatpak', () => {
++  it('exports the retained Flathub ID', () => {
++    expect(MOTRIX_FLATPAK_ID).toBe('net.agalwood.Motrix')
++  })
++
+   it('recognizes the packaged Motrix Flatpak', () => {
+     expect(
+       isPackagedLinuxFlatpak({
+         platform: 'linux',
+         isPackaged: true,
+-        env: { FLATPAK_ID: MOTRIX_FLATPAK_ID },
++        env: { FLATPAK_ID: 'net.agalwood.Motrix' },
+       })
+     ).toBe(true)
+   })
+ 
+   it.each([
++    {
++      platform: 'linux' as const,
++      isPackaged: true,
++      env: { FLATPAK_ID: 'app.motrix.native' },
++    },
++    {
++      platform: 'linux' as const,
++      isPackaged: true,
++      env: { FLATPAK_ID: 'net.agalwood.motrix' },
++    },
+     {
+       platform: 'linux' as const,
+       isPackaged: false,
+-      env: { FLATPAK_ID: MOTRIX_FLATPAK_ID },
++      env: { FLATPAK_ID: 'net.agalwood.Motrix' },
+     },
+     {
+       platform: 'darwin' as const,
+       isPackaged: true,
+-      env: { FLATPAK_ID: MOTRIX_FLATPAK_ID },
++      env: { FLATPAK_ID: 'net.agalwood.Motrix' },
+     },
+     {
+       platform: 'linux' as const,
+diff --git a/src/main/bridge/flatpak-environment.ts b/src/main/bridge/flatpak-environment.ts
+index 9040dc03..78490ce6 100644
+--- a/src/main/bridge/flatpak-environment.ts
++++ b/src/main/bridge/flatpak-environment.ts
+@@ -1,6 +1,6 @@
+ import type { Platform } from './native-messaging-installer'
+ 
+-export const MOTRIX_FLATPAK_ID = 'app.motrix.native'
++export const MOTRIX_FLATPAK_ID = 'net.agalwood.Motrix'
+ 
+ export interface FlatpakEnvironmentOptions {
+   platform: Platform
+diff --git a/src/shared/constants.ts b/src/shared/constants.ts
+index c66d3c4d..80cb5b41 100644
+--- a/src/shared/constants.ts
++++ b/src/shared/constants.ts
+@@ -1,5 +1,5 @@
+ export const APP_NAME = 'Motrix'
+-export const APP_ID = 'app.motrix.native'
++export const APP_ID = 'net.agalwood.Motrix'
+ export const DEFAULT_SAVE_DIR = 'Downloads'
+ export const ENGINE_RPC_PORT = 16800
+ export const ENGINE_RPC_SECRET = 'motrix-secret'
