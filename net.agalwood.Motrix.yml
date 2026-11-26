@@ -185,12 +185,8 @@ modules:
       # Keep the build-only Rust toolchain content-addressed with the rest of
       # the offline sources. A floating Flathub SDK extension can briefly
       # reference objects that have not reached every repository mirror yet.
-      - ./flatpak-rust/install.sh
-        --prefix=/run/build/motrix/flatpak-rust-toolchain
-        --without=rust-docs
-        --without=rust-docs-json-preview
-        --disable-ldconfig
-        --verbose
+      - ./flatpak-rust/install.sh --prefix=/run/build/motrix/flatpak-rust-toolchain --without=rust-docs --without=rust-docs-json-preview
+        --disable-ldconfig --verbose
       # pnpm 12's wrapper requires a platform package. npm cannot resolve that
       # optional dependency from an empty offline registry cache. Both archives
       # below are already integrity-pinned Flatpak inputs, so unpack them into
@@ -226,59 +222,32 @@ modules:
 
       # pnpm 12 otherwise repairs an --ignore-scripts install before run/exec,
       # changing the audited build graph. All later invocations disable it.
-      - pnpm --config.verify-deps-before-run=false
-        run check:third-party-notices
-      - pnpm --config.verify-deps-before-run=false
-        exec electron-rebuild
-        --force
-        --only better-sqlite3
-        --arch=$npm_config_target_arch
+      - pnpm --config.verify-deps-before-run=false run check:third-party-notices
+      - pnpm --config.verify-deps-before-run=false exec electron-rebuild --force --only better-sqlite3 --arch=$npm_config_target_arch
 
-      - install -Dm755 /app/libexec/motrix-build/aria2c
-        extra/linux/$npm_config_target_arch/aria2c
+      - install -Dm755 /app/libexec/motrix-build/aria2c extra/linux/$npm_config_target_arch/aria2c
 
       # The pinned Rust archive supplies the native GNU target, not a musl
       # target. Build directly instead of invoking release-oriented build.mjs.
       # --bins also produces the browser-facing host required transiently by
       # electron-builder. It is stripped before the unpacked app is copied to
       # $FLATPAK_DEST; the broker is the only native-host binary exported.
-      - cargo build
-        --manifest-path packages/native-host/Cargo.toml
-        --bins
-        --release
-        --locked
-        --offline
-        --target=$MOTRIX_RUST_TARGET
+      - cargo build --manifest-path packages/native-host/Cargo.toml --bins --release --locked --offline --target=$MOTRIX_RUST_TARGET
         --target-dir=/run/build/motrix/native-target
-      - install -Dm755
-        /run/build/motrix/native-target/$MOTRIX_RUST_TARGET/release/motrix-native-host
-        packages/native-host/dist/linux-$npm_config_target_arch/motrix-native-host
-      - cargo build
-        --manifest-path packages/finalize-fs/Cargo.toml
-        --release
-        --locked
-        --offline
-        --target=$MOTRIX_RUST_TARGET
+      - install -Dm755 /run/build/motrix/native-target/$MOTRIX_RUST_TARGET/release/motrix-native-host packages/native-host/dist/linux-$npm_config_target_arch/motrix-native-host
+      - cargo build --manifest-path packages/finalize-fs/Cargo.toml --release --locked --offline --target=$MOTRIX_RUST_TARGET
         --target-dir=/run/build/motrix/finalize-target
-      - install -Dm755
-        /run/build/motrix/finalize-target/$MOTRIX_RUST_TARGET/release/motrix-finalize-fs
-        packages/finalize-fs/dist/linux-$npm_config_target_arch/motrix-finalize-fs
+      - install -Dm755 /run/build/motrix/finalize-target/$MOTRIX_RUST_TARGET/release/motrix-finalize-fs packages/finalize-fs/dist/linux-$npm_config_target_arch/motrix-finalize-fs
 
       - pnpm --config.verify-deps-before-run=false run build:builtin
       - pnpm --config.verify-deps-before-run=false run build:electron
-      - pnpm --config.verify-deps-before-run=false run stage:electron --
-        --platform linux
-        --arch $npm_config_target_arch
+      - pnpm --config.verify-deps-before-run=false run stage:electron -- --platform linux --arch $npm_config_target_arch
       # electronDist reuses the runtime install.js already extracted from
       # generated-sources; without it electron-builder re-downloads the dist
       # zip and its SHASUMS256.txt from GitHub, which the offline sandbox
       # cannot reach (the SHASUMS file has no URL-keyed cache entry).
-      - pnpm --config.verify-deps-before-run=false exec electron-builder
-        --linux dir
-        --$npm_config_arch
-        -c.linux.target=dir
-        -c.electronDist=node_modules/electron/dist
-        --publish=never
+      - pnpm --config.verify-deps-before-run=false exec electron-builder --linux dir --$npm_config_arch -c.linux.target=dir
+        -c.electronDist=node_modules/electron/dist --publish=never
 
       - |
         unpacked=release/linux-unpacked
@@ -301,19 +270,13 @@ modules:
       # The public command is a fixed wrapper around the private broker. The
       # host-side companion translates Browser Native Messaging frames into
       # the versioned broker protocol before invoking this command.
-      - install -Dm755
-        /run/build/motrix/native-target/$MOTRIX_RUST_TARGET/release/motrix-native-host-broker
-        $FLATPAK_DEST/libexec/motrix-native-host-broker
-      - install -Dm755 native-host-broker-flatpak.sh
-        $FLATPAK_DEST/bin/motrix-native-host-broker
+      - install -Dm755 /run/build/motrix/native-target/$MOTRIX_RUST_TARGET/release/motrix-native-host-broker $FLATPAK_DEST/libexec/motrix-native-host-broker
+      - install -Dm755 native-host-broker-flatpak.sh $FLATPAK_DEST/bin/motrix-native-host-broker
 
       - patch-desktop-filename $FLATPAK_DEST/motrix/resources/app.asar
-      - install -Dm644 build/256x256.png
-        /app/share/icons/hicolor/256x256/apps/$FLATPAK_ID.png
-      - install -Dm644 flatpak/app.motrix.native.metainfo.xml
-        $FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml
-      - install -Dm644 flatpak/app.motrix.native.desktop
-        $FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop
+      - install -Dm644 build/256x256.png /app/share/icons/hicolor/256x256/apps/$FLATPAK_ID.png
+      - install -Dm644 flatpak/app.motrix.native.metainfo.xml $FLATPAK_DEST/share/metainfo/$FLATPAK_ID.metainfo.xml
+      - install -Dm644 flatpak/app.motrix.native.desktop $FLATPAK_DEST/share/applications/$FLATPAK_ID.desktop
       # Fail on metadata format drift instead of silently exporting wrong IDs.
       - |
         set -eu
@@ -329,8 +292,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/agalwood/Motrix.git
-        tag: v2.4.5
-        commit: 6099f17c585e5accb45972283a638229f24ab64b
+        tag: v2.4.7
+        commit: 0ad4223f9d8c1c5a989a83035d75e7e7a7498b2b
         x-checker-data:
           type: git
           tag-pattern: '^v([0-9]+\.[0-9]+\.[0-9]+)$'
@@ -397,9 +360,7 @@ modules:
           - export MOTRIX_BRIDGE_DATA_DIR="${XDG_CONFIG_HOME:?}/motrix/bridge"
           - export TMPDIR="${XDG_RUNTIME_DIR:?}/app/${FLATPAK_ID:?}"
           - mkdir -p "$TMPDIR"
-          - exec zypak-wrapper /app/motrix/motrix
-            --ozone-platform-hint=auto
-            "$@"
+          - exec zypak-wrapper /app/motrix/motrix --ozone-platform-hint=auto "$@"
 
       - type: script
         dest-filename: native-host-broker-flatpak.sh
